@@ -17,6 +17,9 @@ const pipePromise = pipeline("feature-extraction", defaultModel);
 
 // Cosine similarity function
 const cosineSimilarity = (vecA, vecB) => {
+  if (vecA.length !== vecB.length) {
+    throw new Error("Vectors must be of the same length");
+  }
   const dotProduct = vecA.reduce(
     (sum, val, index) => sum + val * vecB[index],
     0
@@ -106,7 +109,14 @@ async function loadWasm() {
 }
 
 class EntityDB {
-  constructor({ vectorPath, model = defaultModel }) {
+  constructor({
+    name = "EntityDB",
+    collectionName = "vectors",
+    vectorPath,
+    model = defaultModel,
+  }) {
+    this.name = name;
+    this.collectionName = collectionName;
     this.vectorPath = vectorPath;
     this.model = model;
     this.dbPromise = this._initDB();
@@ -114,10 +124,10 @@ class EntityDB {
 
   // Initialize the IndexedDB
   async _initDB() {
-    const db = await openDB("EntityDB", 1, {
+    const db = await openDB(this.name, 1, {
       upgrade(db) {
-        if (!db.objectStoreNames.contains("vectors")) {
-          db.createObjectStore("vectors", {
+        if (!db.objectStoreNames.contains(this.collectionName)) {
+          db.createObjectStore(this.collectionName, {
             keyPath: "id",
             autoIncrement: true,
           });
@@ -137,8 +147,8 @@ class EntityDB {
       }
 
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readwrite");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readwrite");
+      const store = transaction.objectStore(this.collectionName);
       const record = { vector: embedding, ...data };
       const key = await store.add(record);
       return key;
@@ -168,8 +178,8 @@ class EntityDB {
       }
 
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readwrite");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readwrite");
+      const store = transaction.objectStore(this.collectionName);
       const record = { vector: packedEmbedding, ...data };
       const key = await store.add(record);
       return key;
@@ -182,8 +192,8 @@ class EntityDB {
   async insertManualVectors(data) {
     try {
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readwrite");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readwrite");
+      const store = transaction.objectStore(this.collectionName);
       const record = { vector: data[this.vectorPath], ...data };
       const key = await store.add(record);
       return key;
@@ -195,8 +205,8 @@ class EntityDB {
   // Update an existing vector in the database
   async update(key, data) {
     const db = await this.dbPromise;
-    const transaction = db.transaction("vectors", "readwrite");
-    const store = transaction.objectStore("vectors");
+    const transaction = db.transaction(this.collectionName, "readwrite");
+    const store = transaction.objectStore(this.collectionName);
     const vector = data[this.vectorPath];
     const updatedData = { ...data, [store.keyPath]: key, vector };
     await store.put(updatedData);
@@ -205,8 +215,8 @@ class EntityDB {
   // Delete a vector by key
   async delete(key) {
     const db = await this.dbPromise;
-    const transaction = db.transaction("vectors", "readwrite");
-    const store = transaction.objectStore("vectors");
+    const transaction = db.transaction(this.collectionName, "readwrite");
+    const store = transaction.objectStore(this.collectionName);
     await store.delete(key);
   }
 
@@ -217,8 +227,8 @@ class EntityDB {
       const queryVector = await getEmbeddingFromText(queryText, this.model);
 
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readonly");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readonly");
+      const store = transaction.objectStore(this.collectionName);
       const vectors = await store.getAll(); // Retrieve all vectors
 
       // Calculate cosine similarity for each vector and sort by similarity
@@ -254,8 +264,8 @@ class EntityDB {
       }
 
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readonly");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readonly");
+      const store = transaction.objectStore(this.collectionName);
       const vectors = await store.getAll();
 
       // Calculate Hamming distance
@@ -305,8 +315,8 @@ class EntityDB {
       );
 
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readonly");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readonly");
+      const store = transaction.objectStore(this.collectionName);
       const vectors = await store.getAll();
 
       vectors.forEach((entry, index) => {
@@ -345,8 +355,8 @@ class EntityDB {
   async queryManualVectors(queryVector, { limit = 10 } = {}) {
     try {
       const db = await this.dbPromise;
-      const transaction = db.transaction("vectors", "readonly");
-      const store = transaction.objectStore("vectors");
+      const transaction = db.transaction(this.collectionName, "readonly");
+      const store = transaction.objectStore(this.collectionName);
       const vectors = await store.getAll(); // Retrieve all vectors
 
       // Calculate cosine similarity for each vector and sort by similarity
