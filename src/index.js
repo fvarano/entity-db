@@ -124,10 +124,11 @@ class EntityDB {
 
   // Initialize the IndexedDB
   async _initDB() {
+    const collectionName = this.collectionName;
     const db = await openDB(this.name, 1, {
       upgrade(db) {
-        if (!db.objectStoreNames.contains(this.collectionName)) {
-          db.createObjectStore(this.collectionName, {
+        if (!db.objectStoreNames.contains(collectionName)) {
+          db.createObjectStore(collectionName, {
             keyPath: "id",
             autoIncrement: true,
           });
